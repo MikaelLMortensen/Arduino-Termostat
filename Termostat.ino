@@ -17,6 +17,11 @@ float termostatHighTemp = 21;
 float termostatLowTemp = 19;
 
 static const unsigned long intervalInMs = 5000;
+unsigned long keypress_timeout = 0;
+
+String output1 = "";
+String output2 = "";
+
 
 const int NOTHING = 0;
 const int UP      = 1;
@@ -72,31 +77,11 @@ void loop() {
     float temperature;
     float humidity;
 
-    /* Measure temperature and humidity.  If the functions returns
-       true, then a measurement is available. */
-    if (measure_environment(&temperature, &humidity)) {
-        String star = " ";
-        if (odd) {
-            star = "*";
-        }    
-        odd = !odd;
-
-        String output1 = "Temp: " + String(temperature) + (char)223 + "C  " + star;
-        String output2 = "Hum : " + String(humidity) + "%";
-
-        Serial.println(output1);
-        Serial.println(output2);
-
-        lcd.setCursor(0, 0);
-        lcd.print(output1);
-        lcd.setCursor(0, 1);
-        lcd.print(output2);
-    }
-
     int keypress = readKeypad();
-    unsigned long press_timestamp = millis();
 
     if (keypress != NOTHING) {
+        keypress_timeout = millis() +  5000;
+
         switch (keypress){
             case LEFT:
             termostatLowTemp = termostatLowTemp - 0.5;
@@ -113,7 +98,37 @@ void loop() {
             case SELECT:
             break;
         }
+        output1 = "Min Temp: " + String(termostatLowTemp) + (char)223 + "C";
+        output2 = "Max Temp: " + String(termostatHighTemp) + (char)223 + "C";
+
+        lcd.setCursor(0, 0);
+        lcd.print(output1);
+        lcd.setCursor(0, 1);
+        lcd.print(output2);
+        delay(300);
     }
+
+    /* Measure temperature and humidity.  If the functions returns
+       true, then a measurement is available. */
+    if (keypress_timeout < millis() && measure_environment(&temperature, &humidity)) {
+        String star = " ";
+        if (odd) {
+            star = "*";
+        }    
+        odd = !odd;
+
+        output1 = "Temp: " + String(temperature) + (char)223 + "C  " + star;
+        output2 = "Hum : " + String(humidity) + "%";
+
+        Serial.println(output1);
+        Serial.println(output2);
+
+        lcd.setCursor(0, 0);
+        lcd.print(output1);
+        lcd.setCursor(0, 1);
+        lcd.print(output2);
+    }
+
 }
 
 // Læs knapper fra LCD Keypad Shield
