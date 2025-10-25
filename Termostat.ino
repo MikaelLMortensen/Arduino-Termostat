@@ -6,22 +6,45 @@
 //#define DHT_SENSOR_TYPE DHT_TYPE_11
 //#define DHT_SENSOR_TYPE DHT_TYPE_21
 #define DHT_SENSOR_TYPE DHT_TYPE_22
+#define LCD_BACKLIGHT 10
 
 static const int DHT_SENSOR_PIN = A1;
 DHT_Async dht_sensor(DHT_SENSOR_PIN, DHT_SENSOR_TYPE);
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // LCD Keypad Shield standard pins
 bool odd = true;
 
+float termostatHighTemp = 21;
+float termostatLowTemp = 19;
+
+static const unsigned long intervalInMs = 5000;
+
+const int NOTHING = 0;
+const int UP      = 1;
+const int DOWN    = 2;
+const int LEFT    = 3;
+const int RIGHT   = 4;
+const int SELECT  = 5;
+
 /*
  * Initialize the serial port.
  */
 void setup() {
   Serial.begin(115200);
+//   pinMode(LCD_BACKLIGHT, OUTPUT);
+//   digitalWrite(LCD_BACKLIGHT, HIGH);  // TÆND
+//   delay(2000);
+//   digitalWrite(LCD_BACKLIGHT, LOW);   // SLUK
+
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
-  lcd.print("* DHT11 Sensor *");
-  delay(2000);
-  lcd.clear();
+  lcd.print("** TERMOSTAT **");
+//   for(int i=0;i<255;i++) {
+//     analogWrite(LCD_BACKLIGHT, i);  // 50% lysstyrke (0-255)        
+//     delay(20);
+//   }
+  delay(1000);
+  //lcd.clear();
+
 }
 
 /*
@@ -29,12 +52,11 @@ void setup() {
  * true if a measurement is available.
  */
 static bool measure_environment(float *temperature, float *humidity) {
-    static unsigned long measurement_timestamp = millis();
+    static unsigned long next_measurement_timestamp = millis() + intervalInMs;
 
     /* Measure once every four seconds. */
-    if (millis() - measurement_timestamp > 2000ul) {
+    if (millis() > next_measurement_timestamp) {
         if (dht_sensor.measure(temperature, humidity)) {
-            measurement_timestamp = millis();
             return (true);
         }
     }
@@ -53,48 +75,71 @@ void loop() {
     /* Measure temperature and humidity.  If the functions returns
        true, then a measurement is available. */
     if (measure_environment(&temperature, &humidity)) {
-        Serial.print("T = ");
-        Serial.print(temperature, 1);
-        Serial.print(" deg. C, H = ");
-        Serial.print(humidity, 1);
-        Serial.println("%");
-
-        lcd.setCursor(0, 0);
-        lcd.print("Temp: ");
-        lcd.print(temperature);
-        lcd.print((char)223);  // °-symbolet
-        if (odd == true) {
-            lcd.print("C  *");     
-        } else {
-            lcd.print("C   ");     
-        }
-
-        lcd.setCursor(0, 1);
-        lcd.print("Fugt: ");
-        lcd.print(humidity);
-
-        if (odd == true) {
-            lcd.print("%    ");
-        } else {
-            lcd.print("%   *");
-        }
+        String star = " ";
+        if (odd) {
+            star = "*";
+        }    
         odd = !odd;
 
-        int adc_key_in = analogRead(A0);
-        Serial.print("Analog: ");
-        Serial.print(adc_key_in);
-        Serial.print(" - ");
-        Serial.println(readKeypad());
+        String output1 = "Temp: " + String(temperature) + (char)223 + "C  " + star;
+        String output2 = "Hum : " + String(humidity) + "%";
+
+        Serial.println(output1);
+        Serial.println(output2);
+
+        lcd.setCursor(0, 0);
+        lcd.print(output1);
+        lcd.setCursor(0, 1);
+        lcd.print(output2);
+    }
+
+    int keypress = readKeypad();
+    unsigned long press_timestamp = millis();
+
+    if (keypress != NOTHING) {
+        switch (keypress){
+            case LEFT:
+            termostatLowTemp = termostatLowTemp - 0.5;
+            break;
+            case RIGHT:
+            termostatLowTemp = termostatLowTemp + 0.5;
+            break;
+            case UP:
+            termostatHighTemp = termostatHighTemp + 0.5;
+            break;
+            case DOWN:
+            termostatHighTemp = termostatHighTemp - 0.5;
+            break;
+            case SELECT:
+            break;
+        }
     }
 }
 
 // Læs knapper fra LCD Keypad Shield
-static String readKeypad() {
+static int readKeypad() {
   int adc_key_in = analogRead(A0);
-  if (adc_key_in == 0) return "RIGHT"; // UP
-  if (adc_key_in < 150) return "UP"; // UP
-  if (adc_key_in < 350) return "DOWN"; // UP
-  if (adc_key_in < 500) return "LEFT"; // RIGHT
-  if (adc_key_in < 750) return "SELECT"; // SELECT
-  return ""; // Ingen knap trykket
+  if (adc_key_in == 0) return RIGHT; 
+  if (adc_key_in < 150) return UP; 
+  if (adc_key_in < 350) return DOWN; 
+  if (adc_key_in < 500) return LEFT; 
+  if (adc_key_in < 750) return SELECT; 
+  return 0; // Ingen knap trykket
+}
+
+// Format string function 
+String format(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  int size = vsnprintf(nullptr, 0, fmt, args) + 1;
+  va_end(args);
+
+  char *buffer = new char[size];
+  va_start(args, fmt);
+  vsnprintf(buffer, size, fmt, args);
+  va_end(args);
+
+  String result(buffer);
+  delete[] buffer;
+  return result;
 }
