@@ -141,9 +141,9 @@ void loop() {
         }
 
         if (termostatOn) {
-          irsend.sendSony(0xAA, 8); // Sony-protokol, kode 0xAA, 8-bit          
+          irsend.sendNEC(0x20DF10EF, 32); // NEC-protokol,32-bit  => "Power"
         } else {
-          irsend.sendSony(0xBB, 8); // Sony-protokol, kode 0xBB, 8-bit          
+          irsend.sendNEC(0x20DF906F, 32); // NEC-protokol, 32-bit => "Mute"
         }
 
         output1 = "Temp: " + String(temperature) + (char)223 + "C  " + star;
