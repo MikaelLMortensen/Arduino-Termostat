@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "DHT_Async.h"
 #include <LiquidCrystal.h>
+#include <IRremote.h>
 
 /* Uncomment according to your sensortype. */
 //#define DHT_SENSOR_TYPE DHT_TYPE_11
@@ -22,6 +23,8 @@ unsigned long keypress_timeout = 0;
 String output1 = "";
 String output2 = "";
 
+const int irSenderPin = 3;
+IRsend irsend(irSenderPin);
 
 const int NOTHING = 0;
 const int UP      = 1;
@@ -29,6 +32,9 @@ const int DOWN    = 2;
 const int LEFT    = 3;
 const int RIGHT   = 4;
 const int SELECT  = 5;
+
+bool termostatOn = false;
+String status = "OFF";
 
 /*
  * Initialize the serial port.
@@ -84,20 +90,25 @@ void loop() {
 
         switch (keypress){
             case LEFT:
-            termostatLowTemp = termostatLowTemp - 0.5;
+              termostatLowTemp = termostatLowTemp - 0.5;
             break;
             case RIGHT:
-            termostatLowTemp = termostatLowTemp + 0.5;
+              termostatLowTemp = termostatLowTemp + 0.5;
             break;
             case UP:
-            termostatHighTemp = termostatHighTemp + 0.5;
+              termostatHighTemp = termostatHighTemp + 0.5;
             break;
             case DOWN:
-            termostatHighTemp = termostatHighTemp - 0.5;
+              termostatHighTemp = termostatHighTemp - 0.5;
             break;
             case SELECT:
             break;
         }
+
+        if (termostatHighTemp <= termostatLowTemp + 1){
+          termostatLowTemp = termostatHighTemp - 1;
+        }
+
         output1 = "Min Temp: " + String(termostatLowTemp) + (char)223 + "C";
         output2 = "Max Temp: " + String(termostatHighTemp) + (char)223 + "C";
 
@@ -117,8 +128,26 @@ void loop() {
         }    
         odd = !odd;
 
+        if (termostatOn) {
+          if (temperature > termostatHighTemp) {
+            termostatOn = false;
+            status = "OFF";
+          }
+        } else {
+          if (temperature < termostatLowTemp) {
+              status = " ON";
+              termostatOn = true;
+          }
+        }
+
+        if (termostatOn) {
+          irsend.sendSony(0xAA, 8); // Sony-protokol, kode 0xAA, 8-bit          
+        } else {
+          irsend.sendSony(0xBB, 8); // Sony-protokol, kode 0xBB, 8-bit          
+        }
+
         output1 = "Temp: " + String(temperature) + (char)223 + "C  " + star;
-        output2 = "Hum : " + String(humidity) + "%";
+        output2 = "Hum : " + String(humidity) + "% " +  status;
 
         Serial.println(output1);
         Serial.println(output2);
@@ -128,7 +157,6 @@ void loop() {
         lcd.setCursor(0, 1);
         lcd.print(output2);
     }
-
 }
 
 // Læs knapper fra LCD Keypad Shield
